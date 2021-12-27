@@ -121,8 +121,12 @@ class Model:
 
     async def update_cell(self, i: int, rule: Callable[[int, int], bool] = None):
         _y, _x = self.index_to_row_col(i)
-        new_state = rule(_y, _x)
+        new_state = rule(_y, _x) #
         self._update_counter.increment()
+
+        # if the new state is None, don't do anything
+        if new_state is None:
+            return
 
         await self._update_event_obj.wait()
         self.grid[_y][_x] = new_state
@@ -140,8 +144,9 @@ class Model:
 
     async def next_iter(self):
         # TODO: this will be defined elsewhere, as it could get very complicated
-        def rule_function(y: int, x: int) -> bool:
-            return bool(self.top(y, x))
+        def rule_function(y: int, x: int):
+            # return None to mean do nothing if the cell is out of bound
+            return self.top(y, x)
 
         # for each cell in the grind, 1 index instead of 0 index
         self._update_counter.reset_counter()
