@@ -71,6 +71,11 @@ class Model:
         self.grid_size = 0
         self._number_of_cells = 0
 
+        # contains a list of indexs for cells that have had their value changed in the update cycle
+        # can be useful later on for a View class to grab just the changed cells and update those,
+        # instead of the whole grid
+        self._indexes_updated = []
+
         self.top_left: Union[bool, None] = lambda y, x: self.safe_index(y - 1, x - 1)
         self.top: Union[bool, None] = lambda y, x: self.safe_index(y - 1, x)
         self.top_right: Union[bool, None] = lambda y, x: self.safe_index(y - 1, x + 1)
@@ -121,18 +126,20 @@ class Model:
 
     async def update_cell(self, i: int, rule: Callable[[int, int], bool] = None):
         _y, _x = self.index_to_row_col(i)
-        new_state = rule(_y, _x) #
+        current_value = self.grid[_y][_x]
+        new_state = rule(_y, _x)
         self._update_counter.increment()
 
-        # if the new state is None, don't do anything
-        if new_state is None:
+        # if the new state is None, do nothing
+        # if there is no change in state, do nothing
+        if new_state is None or new_state == current_value:
             return
 
         await self._update_event_obj.wait()
         self.grid[_y][_x] = new_state
+        self._indexes_updated.append(i)
 
     def safe_index(self, y: int, x: int) -> Union[bool, None]:
-        r: Union[bool, None]
         if (
                 y >= self.grid_size or
                 x >= self.grid_size or
@@ -148,7 +155,9 @@ class Model:
             # return None to mean do nothing if the cell is out of bound
             return self.top(y, x)
 
-        # for each cell in the grind, 1 index instead of 0 index
+        # for each cell in the grid.
+        # 1 index instead of 0 index
+        self._indexes_updated = []
         self._update_counter.reset_counter()
         update_tasks = []
         for cell_index in range(1, self._number_of_cells + 1):
@@ -165,6 +174,14 @@ class Model:
     def get_grid(self) -> np.ndarray:
         return self.grid
 
+    def get_updated_cell_indexs(self) -> list:
+        """
+        returns the list of indexs, of cells that were updated in the last
+        `next_iter` invocation
+        :return: list of indexs, of cells that had their value changed
+        """
+        return self._indexes_updated
+
 
 class View:
     def __init__(self, model: Model):
@@ -177,6 +194,7 @@ class View:
 
     def print_grid(self):
         print(self.model.get_grid())
+        print(f"changed values:", *self.model.get_updated_cell_indexs())
 
 
 class Loop:
@@ -199,6 +217,8 @@ async def main():
         [0, 0, 0],
         [0, 0, 0],
     ]
+    pattern = [[0,0,0,0,0,0,0,0,0,0] for i in range(10)]
+    pattern[0][4]=1
     # grid must be a square
     model = Model()
     model.init_from_array(pattern)
@@ -209,8 +229,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-'''
-    for every cell in the gird:
-        
-'''
