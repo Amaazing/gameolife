@@ -253,12 +253,16 @@ class Loop:
 
 async def main():
     pattern = [
-        [0, 1, 0],
-        [0, 0, 0],
-        [0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 1, 1, 0, 0],
+        [0, 0, 1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0]
     ]
-    pattern = [[0,0,0,0,0,0,0,0,0,0] for i in range(10)]
-    pattern[0][4]=1
+    # pattern = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0] for i in range(10)]
+    # pattern[0][4] = 1
     # grid must be a square
     model = Model()
     model.init_from_array(pattern)
