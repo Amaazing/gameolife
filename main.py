@@ -1,6 +1,6 @@
 import asyncio
 import math
-from typing import Callable, Union, Any
+from typing import Callable, Union, Any, Iterable
 
 import numpy as np
 
@@ -85,6 +85,11 @@ class Model:
         self.bottom_left: Union[bool, None] = lambda y, x: self.safe_index(y + 1, x - 1)
         self.left: Union[bool, None] = lambda y, x: self.safe_index(y, x - 1)
 
+    def _neighbours_gen(self, y: int, x: int) -> Iterable[int]:
+        _f: list = [self.top_left, self.top, self.top_right, self.right, self.bottom_right, self.bottom,
+                    self.bottom_left, self.left]
+        return (f(y, x) or 0 for f in _f)  # get values for neighbours of [y, x]
+
     def init_from_array(self, _pattern: list):
         self.grid = np.asarray(_pattern)
         self.grid_size = len(_pattern)
@@ -150,11 +155,6 @@ class Model:
         return self.grid[y][x]
 
     async def next_iter(self):
-        # TODO: this will be defined elsewhere, as it could get very complicated
-        def rule_function(y: int, x: int):
-            # return None to mean do nothing if the cell is out of bound
-            return self.top(y, x)
-
         # for each cell in the grid.
         # 1 index instead of 0 index
         self._indexes_updated = []
@@ -165,11 +165,51 @@ class Model:
             # evaluate the value of the cell for the next iteration,
             # and apply the value once the whole grid has been evaluated
             task = asyncio.create_task(
-                self.update_cell(cell_index, rule=rule_function))
+                self.update_cell(cell_index, rule=self.rule_function))
             update_tasks.append(task)
 
         # wait for all the cells to have updated
         await asyncio.gather(*update_tasks)
+
+    def rule_function(self, y: int, x: int) -> Union[bool, None]:
+        """
+            Any live cell with fewer than two live neighbours dies, as if by underpopulation.
+            Any live cell with two or three live neighbours lives on to the next generation.
+            Any live cell with more than three live neighbours dies, as if by overpopulation.
+            Any dead cell with exactly three live neighbours becomes a live cell, as if by reproduction.
+        :param y:
+        :param x:
+        :return: Should cell be alive?
+                 True if the cell should be alive, False if the cell should die, None if nothing should happen
+        """
+        neighbour_count = sum(self._neighbours_gen(y, x))
+        if self.is_cell_alive(y=y, x=x):
+            if neighbour_count < 2:
+                return False
+            elif neighbour_count in [2, 3]:
+                return True
+            elif neighbour_count > 3:
+                return False
+        else:
+            if neighbour_count == 3:
+                return True
+
+    def is_cell_alive(self, *p_args, i=None, y=None, x=None):
+        if p_args:
+            raise ValueError("is_cell_alive does not accept positional parameters")
+        if None in [y, x] and i is None:
+            raise ValueError(f"{'y' if y is None else 'x'} is None")
+        if i:
+            return bool(self.get_cell_by_index(i))
+        else:
+            return bool(self.get_cell_by_y_x(y, x))
+
+    def get_cell_by_index(self, i):
+        _y, _x = self.index_to_row_col(i)
+        return self.get_cell_by_y_x(_y, _x)
+
+    def get_cell_by_y_x(self, _y: int, _x: int):
+        return self.safe_index(_y, _x)
 
     def get_grid(self) -> np.ndarray:
         return self.grid
